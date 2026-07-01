@@ -1,0 +1,50 @@
+# netbox-mcp.toml — scope + field policy. Copy to netbox-mcp.toml and edit, or
+# let `netbox-mcp-setup` generate it. Secrets/URL are NEVER here — they are env
+# vars (NETBOX_URL, NETBOX_TOKEN_RO, NETBOX_TOKEN_RW).
+
+[scope]
+# Client-side defense-in-depth on top of the NetBox service-user permission
+# constraint (which is the authoritative gate). Slugs.
+tenants = []          # e.g. ["acme"]
+sites = []            # e.g. ["lon1", "lon2"]
+
+[tls]
+# TLS trust for the NetBox HTTPS endpoint. Common case: an internal NetBox with
+# a self-signed cert. Prefer pointing ca_bundle at the internal CA cert (secure).
+# verify = false disables verification entirely (INSECURE — testing only).
+# Env vars NETBOX_CA_BUNDLE / NETBOX_TLS_VERIFY override these. The standard
+# requests var REQUESTS_CA_BUNDLE also works (honoured while verify stays true).
+# ca_bundle = "/etc/ssl/certs/internal-ca.pem"
+verify = true
+
+[config_context]
+# config_context can carry SECRETS (it often embeds provisioning data). It is a
+# HARD GATE, OFF by default: when enabled=false it is never fetched or returned
+# by any tool, regardless of include_config_context. Turn it on deliberately.
+# Env var NETBOX_CONFIG_CONTEXT_ENABLED overrides this.
+enabled = false
+# Only when enabled=true: whether list_* render config_context by default
+# (get_* always do once enabled). Per-call include_config_context still overrides.
+in_lists = false
+
+[redact]
+# Redaction applied to EVERY returned record (config_context, custom_fields and
+# top level). Defense-in-depth for secrets that slip through.
+#   keys  = blank any key with these names, anywhere (recursive). Defaults to a
+#           conservative built-in set (password, secret, token, ...). Set to []
+#           to disable, or list your own to REPLACE the defaults.
+#   paths = blank a targeted dotted path. List-aware: a list mid-path applies to
+#           every element (so the example below blanks password in each user).
+# keys  = ["password", "passwd", "secret", "private_key", "api_key", "token"]
+# paths = ["config_context.users.password"]
+
+# [custom_fields]
+# custom_fields pass through in full by default. Uncomment to restrict to named
+# keys only.
+# keys = ["owner", "service_tier"]
+
+# Field allow-sets default to sensible per-object sets baked into the server
+# (config.DEFAULT_FIELDS). Uncomment any object to override explicitly.
+# [fields]
+# device = ["id", "name", "display", "status", "role", "site", "tenant", "primary_ip", "custom_fields"]
+# vm     = ["id", "name", "display", "status", "site", "cluster", "tenant", "primary_ip", "custom_fields"]

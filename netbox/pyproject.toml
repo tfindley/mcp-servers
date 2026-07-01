@@ -1,0 +1,26 @@
+[project]
+name = "netbox-mcp"
+version = "0.1.0"
+description = "MCP server that reads Configuration Item (CI) data from NetBox (devices, VMs, IPs, interfaces + config_context/custom_fields) through a read-by-default, scoped, hard-bounded interface."
+readme = "README.md"
+requires-python = ">=3.11"   # tomllib (stdlib TOML parser) lands in 3.11
+license = { text = "MIT" }
+dependencies = [
+    # MCP server framework (FastMCP lives in the official SDK).
+    "mcp[cli]>=1.2.0",
+    # pynetbox: NetBox Labs' official, first-party REST client. Handles auth,
+    # pagination, retries and the v3/v4 version handshake -- the "engine not
+    # built by us". Kept behind src/netbox_mcp/client.py so it stays swappable.
+    "pynetbox>=7.3",
+]
+
+[project.scripts]
+netbox-mcp = "netbox_mcp.server:main"
+netbox-mcp-setup = "netbox_mcp.setup:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/netbox_mcp"]

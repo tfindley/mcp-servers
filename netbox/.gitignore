@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Local operator config may contain site/tenant scope but NEVER secrets
+# (secrets are env vars). Ignore the active config; ship an example instead.
+netbox-mcp.toml
+
+# Local TLS trust anchors (internal CA / self-signed chains). Site-specific,
+# not for the repo.
+*.pem
+
+# NOTE: uv.lock is deliberately NOT ignored here -- it is committed for
+# supply-chain pinning (see SPEC.md sec.5). This differs from doc-convert.
