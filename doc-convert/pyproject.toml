@@ -1,0 +1,28 @@
+[project]
+name = "doc-convert-mcp"
+version = "0.1.0"
+description = "MCP server that converts non-Markdown documents to Markdown (markitdown + pandoc) so an LLM reads compact text instead of raw binary/markup, saving tokens."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    # MCP server framework (FastMCP lives in the official SDK)
+    "mcp[cli]>=1.2.0",
+    # Microsoft markitdown: Office / PDF / HTML / structured data / email.
+    # Document-focused extras only -- audio/image-OCR extras pull heavy ML
+    # deps (onnxruntime) that aren't needed for token-saving doc conversion.
+    "markitdown[pdf,docx,pptx,xlsx,xls,outlook]>=0.1.1",
+    # Pandoc: the universal document converter. The "-binary" variant
+    # bundles a prebuilt pandoc executable, so no system install is needed.
+    "pypandoc-binary>=1.13",
+]
+
+[project.scripts]
+doc-convert-mcp = "doc_convert_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/doc_convert_mcp"]
