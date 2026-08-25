@@ -1,0 +1,29 @@
+[project]
+name = "keycloak-mcp"
+version = "0.1.0"
+description = "MCP server that reads Keycloak realm data (groups by path, users, and the attributes on both) through a read-only interface with key-based attribute redaction for confidential/GDPR data."
+readme = "README.md"
+requires-python = ">=3.11"   # tomllib (stdlib TOML parser) lands in 3.11
+license = { text = "MIT" }
+dependencies = [
+    # MCP server framework (FastMCP lives in the official SDK).
+    "mcp[cli]>=1.2.0",
+    # requests + urllib3 Retry: the same HTTP stack the sibling Keycloak tools
+    # in ~/devel/python3 use. Deliberately NOT python-keycloak -- that library's
+    # KeycloakAdmin is write-capable, and the read-only guarantee here comes
+    # from this server having no non-GET code path at all (bar the OIDC token
+    # POST), not from us promising to avoid the write methods.
+    "requests>=2.32",
+    "urllib3>=2.0",
+]
+
+[project.scripts]
+keycloak-mcp = "keycloak_mcp.server:main"
+keycloak-mcp-setup = "keycloak_mcp.setup:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/keycloak_mcp"]

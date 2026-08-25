@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Local operator config carries scope + the ATTRIBUTE KEY NAMES you redact.
+# No secrets (those are env vars), but the key names are site-specific and can
+# themselves hint at what personal data you hold. Ignore the active config;
+# ship an example instead.
+keycloak-mcp.toml
+
+# Local TLS trust anchors (internal CA / self-signed chains). Site-specific.
+*.pem
+
+# NOTE: uv.lock is deliberately NOT ignored -- it is committed for supply-chain
+# pinning, matching netbox/ (and differing from doc-convert/).
+
+# Tooling caches
+.ruff_cache/
