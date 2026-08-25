@@ -30,12 +30,30 @@ in_lists = false
 [redact]
 # Redaction applied to EVERY returned record (config_context, custom_fields and
 # top level). Defense-in-depth for secrets that slip through.
-#   keys  = blank any key with these names, anywhere (recursive). Defaults to a
-#           conservative built-in set (password, secret, token, ...). Set to []
-#           to disable, or list your own to REPLACE the defaults.
+#   keys  = blank any key with these names, anywhere (recursive). Matching is
+#           CASE-INSENSITIVE (so `Password` and `PASSWORD` match `password`) and
+#           whole-key -- never substring, which would blank `bypass` for `pass`.
+#           Defaults to a conservative built-in set (password, secret, token,
+#           ...). Set to [] to disable, or list your own to REPLACE the defaults.
+#   patterns = fnmatch wildcards, for the compound names whole-key matching
+#           cannot reach (`storagepass`, `dbPassword`). Defaults are ANCHORED on
+#           purpose: "*secret" catches `clientSecret` while leaving
+#           `secretary_name` alone, which "*secret*" would blank. Built-in
+#           defaults: "*password", "password*", "*passwd", "passwd*", "*secret",
+#           "secret_*", "*token", "token_*", "*apikey", "*api_key",
+#           "*privatekey", "*private_key", "*credential", "*credentials".
+#           `keys` and `patterns` are INDEPENDENT -- setting one replaces its own
+#           defaults and leaves the other active.
+#           NOTE: fnmatch reads [...] as a character class, so a pattern written
+#           as "*value[*]" matches NOTHING. Leave the brackets out.
 #   paths = blank a targeted dotted path. List-aware: a list mid-path applies to
 #           every element (so the example below blanks password in each user).
-# keys  = ["password", "passwd", "secret", "private_key", "api_key", "token"]
+# keys     = ["password", "passwd", "secret", "private_key", "api_key", "token"]
+# patterns = ["*password", "*secret", "*token", "*storagepass"]
+#
+# Run the audit_config_context_keys tool after any change here: it lists the
+# config_context key paths in your real data (never values) and flags
+# credential-shaped names the policy does not cover.
 # paths = ["config_context.users.password"]
 
 # [custom_fields]

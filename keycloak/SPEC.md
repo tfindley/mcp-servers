@@ -100,7 +100,10 @@ separated:
   `secretary_name` readable. Anchoring is what makes a default pattern set safe
   enough to enable out of the box.
 - `audit_attribute_keys` reports the realm's attribute **key names** (never
-  values) and flags credential- or personal-shaped names the policy misses.
+  values) and flags credential- or personal-shaped names the policy misses. The
+  full uncovered list sits behind `include_all_keys`: it is the bulk of the
+  payload and almost all routine, so the default answer is the actionable part
+  plus a count.
   Discovery belongs in a report, not in sloppier matching: a blanket `*pass*`
   would catch `storagepass` and also blank `bypass`. The audit flags it and lets
   a human decide.

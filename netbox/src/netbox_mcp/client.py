@@ -152,5 +152,19 @@ class NetBoxClient:
     def list_tenants(self, **filters) -> list[dict]:
         return self._list(self._api.tenancy.tenants, filters, include_config_context=False)
 
+    # --- policy audit ------------------------------------------------------
+    def audit_records(self, limit: int) -> tuple[list[dict], dict]:
+        """Raw (unprojected) device/VM records for the redaction audit, plus a
+        note of how many of each were sampled.
+
+        Deliberately bypasses projection: the audit's whole job is to compare
+        what NetBox holds against what the policy hides, so it needs the
+        pre-redaction shape. Only KEY NAMES ever leave audit_config_context_keys
+        -- never a value.
+        """
+        devices = self.list_devices(include_config_context=True)[:limit]
+        vms = self.list_vms(include_config_context=True)[:limit]
+        return devices + vms, {"devices": len(devices), "vms": len(vms)}
+
     def list_racks(self, **filters) -> list[dict]:
         return self._list(self._api.dcim.racks, filters, include_config_context=False)

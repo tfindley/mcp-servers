@@ -26,6 +26,7 @@ Read-only, scope-constrained, field-projected tools:
 | `list_interfaces` | device & VM interfaces |
 | `list_sites` / `list_tenants` / `list_racks` | org & placement context |
 | `netbox_status` | health + detected NetBox version |
+| `audit_config_context_keys` | which config_context keys exist and whether redaction covers them |
 
 **Custom fields and config context come through these tools** — not separate
 endpoints. `custom_fields` is included by default (restrictable to named keys in
@@ -36,10 +37,30 @@ until you set `[config_context] enabled = true`. Once enabled it is included on
 List filters: **name, tenant, site, status**.
 
 **Secret redaction.** Every returned record is passed through a redaction layer
-(`[redact]` in the toml): `keys` blanks matching key names anywhere (conservative
-built-in defaults like `password`/`secret`/`token`), and `paths` blanks targeted
-dotted, list-aware paths (e.g. `config_context.users.password`).
-This covers `custom_fields` too, not just `config_context`.
+(`[redact]` in the toml), covering `custom_fields` as well as `config_context`:
+
+| Setting | Effect |
+| --- | --- |
+| `keys` | whole-key names, **case-insensitive** (`Password` matches `password`), never substring |
+| `patterns` | **anchored** wildcards for compound names — `*secret` catches `clientSecret` but not `secretary_name` |
+| `paths` | targeted dotted, list-aware paths — `config_context.users.password` |
+
+`keys` and `patterns` are **independent controls with independent defaults**:
+setting one in your toml replaces its own defaults and leaves the other active.
+
+Anchored patterns exist because `config_context` is free-form YAML and whole-key
+matching cannot reach a compound name. On a real deployment, enabling them took
+redaction from 3 to 10 blanked keys, newly covering `bearer_token`,
+`forgejo_registration_token`, `prometheus_scrape_configs.basic_auth.password` and
+an `htpasswd` blob. Over-matching is fail-safe and deliberate — a redacted
+`PasswordAuthentication` boolean is a nuisance; a leaked bearer token is not.
+
+**`audit_config_context_keys` finds what patterns miss.** No default list knows
+your YAML. The audit walks the real data and reports config_context **key paths**
+— never values, so running it cannot leak what it audits — split into covered,
+not covered, and credential-shaped-but-unredacted. It exists because a blanket
+`*pass*` would catch `storagepass` and also blank `bypass`; the audit flags it
+and a human decides. Run it after any policy change.
 
 DCIM detail (cables/power/console), **any write capability**, and remote/ChatGPT
 support are deliberately **phase 2** — see [`SPEC.md`](./SPEC.md).

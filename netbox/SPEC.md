@@ -124,6 +124,37 @@ tool with scope + projection baked in.
 
 ---
 
+### 3.5 Redaction: anchored patterns + an audit, not looser matching
+
+`config_context` is free-form YAML and is the documented secrets vector, so
+whole-key matching alone is not enough: a `keys` entry for `password` does not
+cover `storagepass` or `dbPassword`, and a `paths` entry covers exactly one
+location. Three changes, deliberately separated:
+
+- **Key matching is case-insensitive.** It was case-sensitive, so `Password`
+  slipped past a `password` entry. Whole-key matching is retained — substring
+  matching would blank `bypass` for `pass`.
+- **`patterns` ships anchored defaults** (`*secret`, `password*`). Anchoring is
+  what makes a default pattern set safe to enable out of the box: `*secret`
+  catches `clientSecret` and `webhookSecret` while `secretary_name` stays
+  readable. Measured on a live deployment, this took redaction from 3 to 10
+  blanked keys, newly covering a bearer token, a runner registration token, a
+  Prometheus `basic_auth.password` and an `htpasswd` blob. It also over-redacts
+  two booleans (`PasswordAuthentication`, `cache_credentials`) — accepted, and
+  the reason the audit reports what is hidden.
+- **`audit_config_context_keys`** reports key paths (never values) split into
+  covered / credential-shaped-but-unredacted, with the full uncovered list
+  behind `include_all_keys` — on a real deployment that list is 450 entries and
+  87% of the payload, almost all routine config. Summarising it by default took
+  a call from 43KB to 5KB. (Found by calling the tool as a tool; the shape-only
+  assertions in the test suite had not noticed.) Discovery belongs in
+  a report rather than in sloppier matching: a blanket `*pass*` would catch
+  `storagepass` and also blank `bypass`. The audit flags it; a human decides.
+
+Projection also now deep-copies before redacting. It previously shallow-copied
+and mutated in place, so nested structures were shared with the caller's record —
+harmless in the current call flow, latent otherwise.
+
 ## 4. NetBox version support: v3 **and** v4, one codebase
 
 Single server, single tool set, **REST via `pynetbox`** (see §5). The REST
@@ -186,6 +217,23 @@ The wizard turns "what do you want to expose?" into the precise, least-privilege
 NetBox setup — so scope decisions are made once, explicitly, and reproduced.
 
 ---
+
+### 6.1 MCP SDK 1.x and 2.x
+
+SDK 2.0 renamed `FastMCP` to `MCPServer` and moved `ToolError`, so the 1.x import
+path fails outright on 2.x. A two-line try/except shim supports both.
+
+2.x also replaces the text of any exception that is **not** a `ToolError` with a
+generic "Error executing tool <name>", keeping the detail server-side. Left
+alone, that silently swallows every message this server relies on to make a
+failure recoverable — "No device with id 42 (or outside configured scope)", a
+NetBox 403, a TLS trust failure. A `_tool` decorator translates `ValueError` /
+`RuntimeError` / `requests.RequestException` into `ToolError` so the text
+survives the boundary.
+
+Every tool also carries `readOnlyHint: true` / `destructiveHint: false`
+annotations, so a client sees the v1 read-only guarantee in the protocol rather
+than only in prose.
 
 ## 7. Transport: stdio first, remote designed-for, deferred
 
