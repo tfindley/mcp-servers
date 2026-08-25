@@ -1,0 +1,90 @@
+# keycloak-mcp.toml — scope + attribute policy. Copy to keycloak-mcp.toml and
+# edit, or let `keycloak-mcp-setup` generate it. Secrets and the base URL are
+# NEVER here — they are env vars (KC_BASE_URL, KC_REALM, KC_CLIENT_ID,
+# KC_CLIENT_SECRET).
+
+[scope]
+# Restrict every group read to these subtrees. A path is in scope if it equals
+# one of these or sits beneath it, so "/Engineering" also allows
+# "/Engineering/Platform/Admins". Empty = the whole realm (still bounded by the
+# service account's roles, which are the authoritative gate).
+group_paths = []          # e.g. ["/Engineering", "/Contractors"]
+
+[tls]
+# TLS trust for the Keycloak endpoint. Common case: an internal IdP behind an
+# internal CA — point ca_bundle at that CA cert (secure). verify = false
+# disables verification entirely (INSECURE — testing only) and also exposes your
+# bearer token. Env vars KC_CA_BUNDLE / KC_TLS_VERIFY (or the sibling tools'
+# KC_NO_VERIFY) override these.
+# ca_bundle = "/etc/ssl/certs/internal-ca.pem"
+verify = true
+
+[redact]
+# THE control for confidential / GDPR attribute data. Keycloak `attributes` are
+# a free-form bag on both groups and users, so this is where you decide what an
+# agent may never read.
+#
+# Applied recursively to EVERY record this server returns — group attributes,
+# user attributes, and top-level fields alike. Adding "email" here blanks the
+# top-level user email too, not just an attribute of that name.
+#
+#   mode           "redact" (default) replaces the value with "[redacted]" and
+#                  leaves the key visible, so the model can tell that an
+#                  attribute exists without reading it. "drop" removes the key
+#                  entirely — use when the attribute's very presence is
+#                  sensitive. Note that "drop" also removes it from the
+#                  `withheld_attributes` report.
+#   keys           whole-key names. Case-insensitive unless case_sensitive is
+#                  set, and NEVER substring — "secret" will not blank
+#                  "secretary_name". Setting this REPLACES the built-in
+#                  credential defaults; set to [] to disable them.
+#   patterns       fnmatch wildcards, for deliberate prefix/substring matching.
+#   paths          targeted dotted, list-aware paths.
+mode = "redact"
+case_sensitive = false
+
+# Built-in defaults (credential-ish keys) are active when `keys` is absent.
+# Uncomment to replace them with your own list:
+# keys = [
+#   "password", "passwd", "secret", "clientSecret", "token",
+#   "private_key", "api_key", "credential", "totp",
+# ]
+
+# patterns = ["*secret*", "*password*", "urn:ietf:params:scim:*"]
+# paths    = ["attributes.homeAddress"]
+
+# --- GDPR / personal-data starter set --------------------------------------
+# NOT enabled by default: which attribute keys hold personal data is entirely
+# site-specific, and blanking them unasked would hide data you may legitimately
+# need. Review, then merge into `keys` above (remember that setting `keys`
+# replaces the credential defaults, so keep those you want).
+#
+# keys = [
+#   # credentials — keep these
+#   "password", "passwd", "secret", "clientSecret", "token", "credential", "totp",
+#   # identifiers
+#   "dateOfBirth", "dob", "nationalInsuranceNumber", "niNumber", "ssn",
+#   "passportNumber", "drivingLicence", "taxId",
+#   # contact / location
+#   "homeAddress", "postcode", "homePhone", "mobile", "personalEmail",
+#   "emergencyContact", "nextOfKin",
+#   # financial
+#   "bankAccount", "accountNumber", "sortCode", "iban", "salary",
+#   # special-category data (GDPR Art. 9)
+#   "medicalNotes", "disability", "ethnicity", "religion", "gender", "maritalStatus",
+# ]
+
+# [attributes]
+# Optional STRICTER mode: an allow-list, applied before redaction. When set,
+# `attributes` is reduced to these keys only — everything else disappears.
+# Matching is exact and case-sensitive. Leave unset to pass all keys through
+# (redaction still applies).
+# group_keys = ["costCentre", "serviceTier", "entitlements"]
+# user_keys  = ["employeeType", "department"]
+
+[limits]
+# Bounds so a careless query cannot pull a whole realm.
+page_size   = 100        # Keycloak's own page ceiling on most endpoints
+max_members = 500        # hard cap on members returned per group
+max_depth   = 10         # hard cap on list_groups recursion
+timeout     = 30         # per-request seconds (env KC_TIMEOUT overrides)
