@@ -242,6 +242,7 @@ def audit_attribute_keys(
     sample_size: int = 200,
     include_groups: bool = True,
     include_users: bool = True,
+    include_all_keys: bool = False,
 ) -> dict:
     """Audit which attribute key names exist in the realm and whether the
     redaction policy actually covers them.
@@ -256,10 +257,14 @@ def audit_attribute_keys(
     a prompt for operator review, not a verdict — some flagged keys are
     legitimately public, and it will not catch a sensitive key with an
     innocuous name.
+
+    The full list of unredacted keys is summarised to a count by default; set
+    include_all_keys=True to get every one.
     """
     return _get().audit_attribute_keys(
         sample_size=sample_size,
         include_groups=include_groups, include_users=include_users,
+        include_all_keys=include_all_keys,
     )
 
 

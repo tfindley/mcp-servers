@@ -76,6 +76,38 @@ DEFAULT_REDACT_KEYS: list[str] = [
     "api_key", "apikey", "token",
 ]
 
+# Compound key names that whole-key matching cannot reach -- config_context is
+# free-form YAML, so real deployments carry things like `storagepass` and
+# `dbPassword` that a `password` entry misses entirely.
+#
+# These wildcards are ANCHORED at one end on purpose: "*secret" catches
+# `clientSecret` while leaving `secretary_name` alone, which a bare "*secret*"
+# would blank. That keeps the never-substring property of `keys` intact while
+# still covering compounds. Over-matching here is fail-safe (a redacted
+# `password_policy` boolean is a nuisance; a leaked credential is not), and
+# audit_config_context_keys shows exactly what the policy hides.
+#
+# Setting [redact].patterns in the toml REPLACES this list. `keys` and
+# `patterns` are independent controls with independent defaults.
+DEFAULT_REDACT_PATTERNS: list[str] = [
+    "*password", "password*", "*passwd", "passwd*",
+    "*secret", "secret_*",
+    "*token", "token_*",
+    "*apikey", "*api_key", "*privatekey", "*private_key",
+    "*credential", "*credentials",
+]
+
+# Key-name fragments that LOOK credential-shaped. Never used to redact anything
+# -- audit_config_context_keys uses them to flag keys the active policy does NOT
+# cover, so an operator finds the gap deliberately instead of in a transcript.
+# Substring matching is fine here precisely because the output is a report.
+AUDIT_SUSPECT_FRAGMENTS: list[str] = [
+    "pass", "secret", "token", "credential", "auth", "key", "hash", "salt",
+    "otp", "seed", "cert", "licen",
+    # NB: no bare "pin" -- it matches "mapping" and produced pure noise on a
+    # real deployment. Fragments earn their place by finding something.
+]
+
 
 @dataclass(frozen=True)
 class Config:
@@ -105,6 +137,7 @@ class Config:
     # appear (recursive). redact_paths: dotted, list-aware paths (e.g.
     # "config_context.users.password") blanked at that location.
     redact_keys: list[str] = field(default_factory=lambda: list(DEFAULT_REDACT_KEYS))
+    redact_patterns: list[str] = field(default_factory=lambda: list(DEFAULT_REDACT_PATTERNS))
     redact_paths: list[str] = field(default_factory=list)
     # TLS trust for the NetBox HTTPS endpoint (common issue: internal NetBox with
     # a self-signed cert). Prefer pointing tls_ca_bundle at the internal CA cert
@@ -183,6 +216,7 @@ def load_config() -> Config:
         config_context_enabled=cc_enabled,
         config_context_in_lists=bool(cc.get("in_lists", False)),
         redact_keys=redact.get("keys", list(DEFAULT_REDACT_KEYS)),
+        redact_patterns=redact.get("patterns", list(DEFAULT_REDACT_PATTERNS)),
         redact_paths=redact.get("paths", []),
         tls_verify=tls_verify,
         tls_ca_bundle=ca_bundle or None,

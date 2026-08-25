@@ -604,7 +604,8 @@ class KeycloakClient:
     # --- policy audit -----------------------------------------------------
     def audit_attribute_keys(self, *, sample_size: int = 200,
                              include_groups: bool = True,
-                             include_users: bool = True) -> dict:
+                             include_users: bool = True,
+                             include_all_keys: bool = False) -> dict:
         """Report which attribute KEY NAMES exist in the realm and whether the
         active redaction policy covers them.
 
@@ -648,13 +649,15 @@ class KeycloakClient:
             if hits:
                 flagged.append({**entry, "matched_fragments": hits})
 
-        return {
+        out = {
             "sampled": sampled,
             "distinct_attribute_keys": len(counts),
             "redacted_by_policy": covered,
-            "not_redacted": uncovered,
+            "not_redacted_count": len(uncovered),
             # The actionable list: credential- or personal-shaped names that the
-            # policy does NOT currently hide.
+            # policy does NOT currently hide. The full uncovered list is
+            # summarised to a count by default -- it runs long on a real realm
+            # and is almost all routine.
             "flagged_not_redacted": flagged,
             "policy": self._config.policy_summary(),
             "note": ("Key names and counts only; no attribute values are read or "
@@ -663,6 +666,9 @@ class KeycloakClient:
                      "public (e.g. an authorized-key list), and some sensitive "
                      "keys will not be flagged at all."),
         }
+        if include_all_keys:
+            out["not_redacted"] = uncovered
+        return out
 
     # --- health -----------------------------------------------------------
     def status(self) -> dict:

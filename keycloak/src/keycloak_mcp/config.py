@@ -72,7 +72,7 @@ DEFAULT_REDACT_PATTERNS: list[str] = [
 # because the output is a report, not a filter.
 AUDIT_SUSPECT_FRAGMENTS: list[str] = [
     "pass", "secret", "token", "credential", "auth", "key", "hash", "salt",
-    "pin", "otp", "mfa",
+    "otp", "mfa",  # no bare "pin": it matches "mapping" and is pure noise
     "phone", "mobile", "address", "postcode", "zip", "birth", "dob",
     "insurance", "national", "nino", "ssn", "taxid", "passport",
     "licence", "license", "bank", "iban", "sortcode", "account",
