@@ -236,6 +236,33 @@ def get_effective_user_attributes(
     )
 
 
+# --- policy audit ---------------------------------------------------------
+@_tool
+def audit_attribute_keys(
+    sample_size: int = 200,
+    include_groups: bool = True,
+    include_users: bool = True,
+) -> dict:
+    """Audit which attribute key names exist in the realm and whether the
+    redaction policy actually covers them.
+
+    Returns key NAMES and occurrence counts only — never an attribute value — so
+    running the audit cannot leak what it is auditing.
+
+    Use it to catch the gap whole-key matching leaves: a `keys` entry for
+    `password` does not cover `storagepass`, and an indexed SCIM key like
+    `phoneNumbers.value[0]` leaves `[1]` readable. `flagged_not_redacted` lists
+    credential- and personal-shaped names the policy does NOT hide; treat it as
+    a prompt for operator review, not a verdict — some flagged keys are
+    legitimately public, and it will not catch a sensitive key with an
+    innocuous name.
+    """
+    return _get().audit_attribute_keys(
+        sample_size=sample_size,
+        include_groups=include_groups, include_users=include_users,
+    )
+
+
 # --- health ---------------------------------------------------------------
 @_tool
 def keycloak_status() -> dict:

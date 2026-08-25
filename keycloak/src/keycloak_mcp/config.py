@@ -47,6 +47,39 @@ DEFAULT_REDACT_KEYS: list[str] = [
     "recoveryCodes", "recovery_codes", "sessionKey",
 ]
 
+# Compound key names that whole-key matching cannot reach: `storagepass`,
+# `dbPassword`, `webhookSecret`. These wildcards are ANCHORED at one end on
+# purpose -- "*secret" catches `clientSecret` and `appSecret` while leaving
+# `secretary_name` alone, which a bare "*secret*" would blank. That keeps the
+# never-substring invariant for `keys` intact while still covering compounds.
+#
+# Over-matching here is fail-safe (a redacted `passwordPolicy` boolean is a
+# nuisance; a leaked password is not), and `audit_attribute_keys` shows exactly
+# what the policy hides, so over-redaction is visible rather than silent.
+# Setting [redact].patterns in the toml REPLACES this list.
+DEFAULT_REDACT_PATTERNS: list[str] = [
+    "*password", "password*", "*passwd", "passwd*",
+    "*secret", "secret_*",
+    "*token", "token_*",
+    "*apikey", "*api_key", "*privatekey", "*private_key",
+    "*credential", "*credentials",
+]
+
+# Key-name fragments that LOOK credential- or personal-shaped. Never used to
+# redact anything -- `audit_attribute_keys` uses them to flag keys the active
+# policy does NOT cover, so an operator finds the gap deliberately instead of
+# discovering it in a transcript. Substring matching is fine here precisely
+# because the output is a report, not a filter.
+AUDIT_SUSPECT_FRAGMENTS: list[str] = [
+    "pass", "secret", "token", "credential", "auth", "key", "hash", "salt",
+    "pin", "otp", "mfa",
+    "phone", "mobile", "address", "postcode", "zip", "birth", "dob",
+    "insurance", "national", "nino", "ssn", "taxid", "passport",
+    "licence", "license", "bank", "iban", "sortcode", "account",
+    "salary", "medical", "disab", "ethnic", "religion", "gender", "marital",
+    "emergency", "nextofkin",
+]
+
 # A starter set of attribute keys that commonly hold personal data subject to
 # GDPR. NOT enabled by default: which keys are personal is entirely
 # site-specific, and blanking them unasked would hide data an operator may
@@ -89,7 +122,7 @@ class Config:
     # client returns, recursively, before it can reach a tool.
     redact_mode: str = "redact"
     redact_keys: list[str] = field(default_factory=lambda: list(DEFAULT_REDACT_KEYS))
-    redact_patterns: list[str] = field(default_factory=list)
+    redact_patterns: list[str] = field(default_factory=lambda: list(DEFAULT_REDACT_PATTERNS))
     redact_paths: list[str] = field(default_factory=list)
     redact_case_sensitive: bool = False
 
@@ -241,7 +274,7 @@ def load_config() -> Config:
         scope_group_paths=[normalize_path(p) for p in scope.get("group_paths", [])],
         redact_mode=mode,
         redact_keys=list(redact.get("keys", DEFAULT_REDACT_KEYS)),
-        redact_patterns=list(redact.get("patterns", [])),
+        redact_patterns=list(redact.get("patterns", DEFAULT_REDACT_PATTERNS)),
         redact_paths=list(redact.get("paths", [])),
         redact_case_sensitive=bool(redact.get("case_sensitive", False)),
         group_attribute_keys=attrs.get("group_keys"),

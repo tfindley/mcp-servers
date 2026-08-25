@@ -22,6 +22,7 @@ layer that every record passes through on the way out.
 | `get_user_groups` | a user's memberships **plus inherited ancestor groups**, with attributes |
 | `get_effective_user_attributes` | user + group attributes merged, with per-value provenance |
 | `keycloak_status` | connectivity, grant used, and the **active redaction policy** |
+| `audit_attribute_keys` | which attribute key names exist and whether the policy covers them |
 
 ### Groups are addressed by path
 
@@ -56,13 +57,34 @@ Configured in `[redact]` in `keycloak-mcp.toml`:
 | Setting | Effect |
 | --- | --- |
 | `keys` | whole-key names, case-insensitive, **never substring** (`secret` will not blank `secretary_name`) |
+| `patterns` (defaults on) | **anchored** wildcards for compound names — `*secret` catches `clientSecret`/`appSecret` but not `secretary_name` |
 | `patterns` | fnmatch wildcards for deliberate matching — `"*secret*"`, `"urn:ietf:params:scim:*"` |
+| | ⚠ fnmatch reads `[...]` as a character class — write `"*value*"`, never `"*value[*]"` |
 | `paths` | targeted dotted, list-aware paths — `"attributes.homeAddress"` |
 | `mode` | `redact` (default) → value becomes `"[redacted]"`, key stays visible; `drop` → key removed entirely |
 
 Redaction is applied **recursively to every record**, so adding `email` blanks
 the top-level user email too, not just an attribute of that name. It runs inside
 the client, not the tool layer, so no tool can return an unredacted record.
+
+`keys` and `patterns` are **independent controls with independent defaults**.
+Setting `keys` in your toml replaces the default key list but leaves the default
+patterns active — to genuinely expose something both cover, clear both
+(`patterns = []`).
+
+**Find the gaps with `audit_attribute_keys`.** Whole-key matching cannot reach a
+compound name, and no default list knows your realm. The audit tool walks the
+realm's attribute **key names** — never values, so running it cannot leak what it
+audits — and reports which are covered, which are not, and which *look*
+credential- or personal-shaped while going unredacted. Run it after any policy
+change. It is a prompt for review, not a verdict: some flagged keys are
+legitimately public, and it cannot flag a sensitive key with an innocuous name.
+
+**Indexed keys.** Keycloak's SCIM shadow attributes are indexed —
+`...phoneNumbers.value[0]`, `...value[1]`, … A `keys` entry matches whole keys,
+so naming one index leaves every other index readable. Put indexed attributes in
+`patterns` instead (`"*phoneNumbers.value*"`), and leave the brackets out of the
+pattern itself.
 
 **Defaults:** a conservative credential set (`password`, `secret`, `token`,
 `clientSecret`, …) is redacted out of the box. A **GDPR / personal-data starter

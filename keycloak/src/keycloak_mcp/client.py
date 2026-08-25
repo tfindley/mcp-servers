@@ -32,7 +32,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from .config import Config, normalize_path
+from .config import AUDIT_SUSPECT_FRAGMENTS, Config, normalize_path
 from .redaction import RedactionPolicy, project_attributes
 
 # Group fields worth returning. Keycloak pads representations with keys that are
@@ -599,6 +599,69 @@ class KeycloakClient:
             "inherited_group_count": memberships["inherited_count"],
             "withheld_attributes": {k: withheld[k] for k in sorted(withheld)},
             "unresolved_groups": memberships["unresolved_groups"],
+        }
+
+    # --- policy audit -----------------------------------------------------
+    def audit_attribute_keys(self, *, sample_size: int = 200,
+                             include_groups: bool = True,
+                             include_users: bool = True) -> dict:
+        """Report which attribute KEY NAMES exist in the realm and whether the
+        active redaction policy covers them.
+
+        Returns key names and occurrence counts only -- never a single attribute
+        VALUE -- so running it cannot itself leak what it is auditing.
+
+        The point is that whole-key matching silently misses compound names: a
+        `keys` entry for `password` does not cover `storagepass`, and an indexed
+        SCIM key like `phoneNumbers.value[0]` leaves `[1]` readable. This finds
+        those gaps deliberately rather than leaving them to be discovered in a
+        transcript.
+        """
+        counts: dict[str, int] = {}
+        sampled = {"groups": 0, "users": 0}
+
+        if include_users:
+            users = self._get_paged("/users", briefRepresentation="false",
+                                    limit=sample_size)
+            sampled["users"] = len(users)
+            for user in users:
+                for key in (user.get("attributes") or {}):
+                    counts[key] = counts.get(key, 0) + 1
+
+        if include_groups:
+            rows = self.list_groups(max_depth=self._config.max_depth,
+                                    limit=sample_size)
+            sampled["groups"] = len(rows)
+            for row in rows:
+                raw = self._raw_group_by_id(row["id"])
+                for key in (raw.get("attributes") or {}):
+                    counts[key] = counts.get(key, 0) + 1
+
+        covered, uncovered, flagged = [], [], []
+        for key, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
+            entry = {"key": key, "occurrences": n}
+            if self._policy.matches(key):
+                covered.append(entry)
+                continue
+            uncovered.append(entry)
+            hits = [f for f in AUDIT_SUSPECT_FRAGMENTS if f in key.lower()]
+            if hits:
+                flagged.append({**entry, "matched_fragments": hits})
+
+        return {
+            "sampled": sampled,
+            "distinct_attribute_keys": len(counts),
+            "redacted_by_policy": covered,
+            "not_redacted": uncovered,
+            # The actionable list: credential- or personal-shaped names that the
+            # policy does NOT currently hide.
+            "flagged_not_redacted": flagged,
+            "policy": self._config.policy_summary(),
+            "note": ("Key names and counts only; no attribute values are read or "
+                     "returned. 'flagged_not_redacted' is a heuristic prompt for "
+                     "review, not a verdict -- some flagged keys are legitimately "
+                     "public (e.g. an authorized-key list), and some sensitive "
+                     "keys will not be flagged at all."),
         }
 
     # --- health -----------------------------------------------------------

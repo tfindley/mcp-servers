@@ -90,6 +90,25 @@ Matcher design decisions:
   itself. Here every representation leaves through `_shape_group`/`_shape_user`,
   so a tool cannot return a raw record by forgetting a call.
 
+**Compound names, and why the audit tool exists.** Whole-key matching cannot
+reach `storagepass` or `dbPassword`, and an indexed SCIM key
+(`phoneNumbers.value[0]`) leaves `[1]` readable. Two responses, deliberately
+separated:
+
+- `patterns` ships with **anchored** defaults (`*secret`, `password*`), which
+  cover compound names while preserving the never-substring property that keeps
+  `secretary_name` readable. Anchoring is what makes a default pattern set safe
+  enough to enable out of the box.
+- `audit_attribute_keys` reports the realm's attribute **key names** (never
+  values) and flags credential- or personal-shaped names the policy misses.
+  Discovery belongs in a report, not in sloppier matching: a blanket `*pass*`
+  would catch `storagepass` and also blank `bypass`. The audit flags it and lets
+  a human decide.
+
+Validated against a live realm: the anchored defaults redacted nothing benign
+across 59 distinct attribute keys, and the audit surfaced a visible postal
+address that a hand-written grep had missed.
+
 **Defaults.** The credential-ish set (`password`, `secret`, `token`,
 `clientSecret`, …) is **on**: those are unambiguous, and failing safe on
 credentials is right. The GDPR/personal-data set is **off**, shipped as a
@@ -151,7 +170,8 @@ tools.
 
 ## 8. v1 scope
 
-**In:** groups (by path/id, children, members, attributes), users (lookup,
+**In:** redaction-policy auditing, groups (by path/id, children, members,
+attributes), users (lookup,
 search, attributes), group memberships including inherited ancestors, merged
 effective attributes with provenance, status/policy introspection.
 
@@ -185,7 +205,8 @@ keycloak/
 | Redact where? | In `client.py`, not the tool layer | no tool can bypass it by omission |
 | GDPR keys on by default? | No — shipped as a prompted starter set | which keys are personal is site-specific; silent hiding is its own failure |
 | Credential keys on by default? | Yes | unambiguous, and failing safe on secrets is correct |
-| Substring key matching? | No — whole-key, with opt-in `patterns` | `secret` must not blank `secretary_name` |
+| Substring key matching? | No — whole-key, plus anchored default `patterns` | anchoring covers `clientSecret` while `secretary_name` stays readable |
+| Catching what patterns miss? | `audit_attribute_keys`, not looser matching | a blanket `*pass*` would blank `bypass`; a report lets a human judge |
 | Groups by id or path? | Path primary, id accepted | path is what humans ask about and makes child groups first-class |
 | Nested or flat group listings? | Flat, with `path` + `level` per row | far cheaper in tokens; `path` already encodes hierarchy |
 | MCP SDK version | Support 1.x and 2.x via a two-line import shim | 2.x renamed `FastMCP` to `MCPServer`; `netbox/` is locked at 1.28.1 |

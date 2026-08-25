@@ -38,7 +38,12 @@ verify = true
 #                  set, and NEVER substring — "secret" will not blank
 #                  "secretary_name". Setting this REPLACES the built-in
 #                  credential defaults; set to [] to disable them.
-#   patterns       fnmatch wildcards, for deliberate prefix/substring matching.
+#   patterns       fnmatch wildcards, for compound names that whole-key matching
+#                  cannot reach (dbPassword, webhookSecret). Defaults are
+#                  ANCHORED on purpose -- "*secret" catches clientSecret while
+#                  leaving secretary_name alone, which "*secret*" would blank.
+#                  Setting this REPLACES the defaults; `keys` and `patterns` are
+#                  independent, so clearing one leaves the other active.
 #   paths          targeted dotted, list-aware paths.
 mode = "redact"
 case_sensitive = false
@@ -50,7 +55,23 @@ case_sensitive = false
 #   "private_key", "api_key", "credential", "totp",
 # ]
 
-# patterns = ["*secret*", "*password*", "urn:ietf:params:scim:*"]
+# Built-in default patterns (active when `patterns` is absent):
+#   "*password", "password*", "*passwd", "passwd*", "*secret", "secret_*",
+#   "*token", "token_*", "*apikey", "*api_key", "*privatekey",
+#   "*private_key", "*credential", "*credentials"
+# Override to add your own, e.g.:
+# patterns = ["*password", "*secret", "*phoneNumbers.value*"]
+#
+# Run the audit_attribute_keys tool after any change here: it lists the
+# realm's attribute key names (never values) and flags credential- or
+# personal-shaped names your policy does not cover.
+#
+# INDEXED KEYS: Keycloak's SCIM shadow attributes are indexed --
+# "...phoneNumbers.value[0]", "...value[1]", and so on. A `keys` entry names ONE
+# of them and leaves the rest visible, so indexed keys belong in `patterns`:
+#     patterns = ["*phoneNumbers.value*"]      # every index
+# Do NOT write the brackets into the pattern: fnmatch reads [...] as a character
+# class, so "*phoneNumbers.value[*]" matches nothing at all.
 # paths    = ["attributes.homeAddress"]
 
 # --- GDPR / personal-data starter set --------------------------------------
